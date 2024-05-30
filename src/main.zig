@@ -35,17 +35,31 @@ pub fn main() !void {
     const allocator = arena.allocator();
     // var buffer = std.ArrayList(u8).init(allocator);
     var data = Data{ .state = State.disconnected };
-    const uri = try Uri.parse("http://solonumeros.com.ar");
+    const uri = Uri.parse("http://solonumeros.com.ar:2000") catch |e| errloop: {
+        std.debug.print("error {}", .{e});
+        break :errloop try Uri.parse("");
+    };
+
     var client = http.Client{ .allocator = allocator };
-    var shb: [1024 * 1024]u8 = undefined;
-    var buffer: [1024 * 1024]u8 = undefined;
+    var shb: [100]u8 = undefined;
+    // var arr = std.ArrayList(u8).init(allocator);
     const options = RequestOptions{ .server_header_buffer = &shb };
 
     // const req = try client.connect(uri.host.?, 2000, http.Client.Connection.Protocol.plain);
-    var req = try client.open(http.Method.GET, uri, options);
-    defer req.deinit();
-    const bytes_read = try req.reader().read(&buffer);
-    std.debug.print("bytes read : {d}", .{bytes_read});
+    var req = client.open(http.Method.GET, uri, options) catch |err| errloop: {
+        std.debug.print("AAAAAAAAAA {any}", .{err});
+        break :errloop try client.open(http.Method.GET, try Uri.parse("http://www.google.com"), options);
+    };
+    std.debug.print("{any}", .{req});
+
+    // defer req
+    const body = req.reader().readAllAlloc(allocator, 8192) catch |err| errloop: {
+        std.debug.print("Error en lectura de respuesta = {}", .{err});
+        break :errloop &.{};
+    };
+
+    errdefer std.debug.print("Caught error", .{});
+    std.debug.print("{s}", .{body});
     defer client.deinit();
     {
         const fetch_connection = try Thread.spawn(.{}, detect_conection_state, .{&data});
